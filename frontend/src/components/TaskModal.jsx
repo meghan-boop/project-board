@@ -312,7 +312,13 @@ export default function TaskModal({ task, sections, employees, clients, user, de
               <div className="add-log-row">
                 <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)} required />
                 <input type="number" value={logHrs} onChange={e => setLogHrs(e.target.value)} placeholder="Hours" min="0.25" step="0.25" required />
-                <input value={logNote} onChange={e => setLogNote(e.target.value)} placeholder="Note (optional)" />
+                <select value={logNote} onChange={e => setLogNote(e.target.value)}>
+                  <option value="">[NA] Not Applicable</option>
+                  <option value="[IC] Initial Concept">[IC] Initial Concept</option>
+                  <option value="[IE] Internal Edits">[IE] Internal Edits</option>
+                  <option value="[CE] Client Edits">[CE] Client Edits</option>
+                  <option value="[FF] Final Files">[FF] Final Files</option>
+                </select>
                 <button type="submit" className="btn btn-primary btn-sm"><i className="ti ti-plus" /></button>
               </div>
             </form>
