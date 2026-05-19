@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { api } from './api';
-import { pal, initials, fmtH, COLS } from './utils';
 import Login           from './components/Login';
 import Board           from './components/Board';
+import ListView        from './components/ListView';
+import Sidebar         from './components/Sidebar';
 import Reports         from './components/Reports';
 import TaskModal       from './components/TaskModal';
 import EmployeeManager from './components/EmployeeManager';
@@ -14,17 +15,11 @@ export default function App() {
   const [tasks, setTasks]         = useState([]);
   const [clients, setClients]     = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [sections, setSections]   = useState([]);
   const [view, setView]           = useState('board');
-  const [filterClient, setFC]     = useState('all');
-  const [filterEmp, setFE]        = useState('all');
+  const [selectedClient, setSelectedClient] = useState(null);
   const [modal, setModal]         = useState(null);
-  // modal shapes:
-  //   null
-  //   { type: 'task', task: null|{}, defaultStatus: 'todo' }
-  //   { type: 'employees' }
-  //   { type: 'clients' }
 
-  // Verify token on mount
   useEffect(() => {
     const token = localStorage.getItem('pb_token');
     if (token) {
@@ -36,21 +31,22 @@ export default function App() {
     }
   }, []);
 
-  // Load data after login
   useEffect(() => {
     if (user) loadAll();
   }, [user]);
 
   async function loadAll() {
     try {
-      const [t, c, e] = await Promise.all([
+      const [t, c, e, s] = await Promise.all([
         api.getTasks(),
         api.getClients(),
-        user.role === 'manager' ? api.getEmployees() : Promise.resolve([]),
+        api.getEmployees(),
+        api.getSections(),
       ]);
       setTasks(t);
       setClients(c);
       setEmployees(e);
+      setSections(s.sort((a, b) => a.position - b.position));
     } catch (err) {
       console.error(err);
     }
@@ -74,13 +70,19 @@ export default function App() {
     } catch {}
   }
 
+  async function refreshSections() {
+    try {
+      const s = await api.getSections();
+      setSections(s.sort((a, b) => a.position - b.position));
+    } catch {}
+  }
+
   function logout() {
     localStorage.removeItem('pb_token');
-    setUser(null); setTasks([]); setClients([]); setEmployees([]);
+    setUser(null); setTasks([]); setClients([]); setEmployees([]); setSections([]);
     setModal(null); setView('board');
   }
 
-  // Modal callbacks
   function handleTaskSaved(saved) {
     setTasks(prev => {
       const idx = prev.findIndex(t => t.id === saved.id);
@@ -91,7 +93,6 @@ export default function App() {
       }
       return [saved, ...prev];
     });
-    // If total_hours was invalidated, refresh tasks silently
     if (saved.total_hours === null) refreshTasks();
     setModal(null);
   }
@@ -101,153 +102,128 @@ export default function App() {
     setModal(null);
   }
 
+  async function handleSectionCreate(data) {
+    try {
+      await api.createSection(data);
+      await refreshSections();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function handleSectionUpdate(id, data) {
+    try {
+      await api.updateSection(id, data);
+      await refreshSections();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function handleSectionDelete(id) {
+    if (!confirm('Delete this section? Tasks will be moved to the first remaining section.')) return;
+    try {
+      await api.deleteSection(id);
+      await Promise.all([refreshSections(), refreshTasks()]);
+    } catch (err) { alert(err.message); }
+  }
+
+  async function handleTaskCreate(data) {
+    try {
+      const saved = await api.createTask(data);
+      setTasks(prev => [saved, ...prev]);
+    } catch (err) { alert(err.message); }
+  }
+
   if (!authChecked) return null;
   if (!user) return <Login onLogin={u => setUser(u)} />;
 
   const isManager = user.role === 'manager';
-  const up = pal(employees, user.id) ?? [['#dbeafe', '#1e40af']][0];
 
-  // Stats derived from visible tasks
-  const visible = tasks.filter(t =>
-    (filterClient === 'all' || String(t.client_id)   === filterClient) &&
-    (filterEmp    === 'all' || String(t.assignee_id) === filterEmp)
-  );
-  const curMonth   = new Date().toISOString().slice(0, 7);
-  const totalHrs   = visible.reduce((s, t) => s + Number(t.total_hours || 0), 0);
-  const monthHrs   = 0; // month-specific hours require logs; shown in Reports
-  const inProgress = visible.filter(t => t.status === 'inprogress').length;
-  const done       = visible.filter(t => t.status === 'done').length;
+  const visibleTasks = selectedClient
+    ? tasks.filter(t => String(t.client_id) === String(selectedClient))
+    : tasks;
 
   return (
-    <div className="app">
-      {/* Header */}
-      <div className="header">
-        <div className="logo"><i className="ti ti-layout-kanban" />Project Board</div>
-        <div className="actions">
-          {/* User pill */}
-          <div className="user-pill">
-            <span className="user-avatar" style={{ background: up?.[0] ?? '#dbeafe', color: up?.[1] ?? '#1e40af' }}>
-              {initials(user.name)}
-            </span>
-            <span>{user.name}</span>
-            <span style={{ fontSize: 10, color: 'var(--text-3)', textTransform: 'capitalize' }}>· {user.role}</span>
-          </div>
-          {isManager && (
-            <>
-              <button className="btn" onClick={() => setModal({ type: 'employees' })}>
-                <i className="ti ti-users" />Team ({employees.length})
-              </button>
-              <button className="btn" onClick={() => setModal({ type: 'clients' })}>
-                <i className="ti ti-building" />Clients
-              </button>
-              <button className="btn btn-primary" onClick={() => setModal({ type: 'task', task: null, defaultStatus: 'todo' })}>
-                <i className="ti ti-plus" />Add task
-              </button>
-            </>
-          )}
-          <button className="btn" onClick={logout} title="Sign out">
-            <i className="ti ti-logout" />
-          </button>
-        </div>
-      </div>
+    <div className="app-shell">
+      <Sidebar
+        user={user}
+        clients={clients}
+        selectedClient={selectedClient}
+        onSelectClient={setSelectedClient}
+        onOpenTeam={() => setModal({ type: 'employees' })}
+        onOpenClients={() => setModal({ type: 'clients' })}
+        onLogout={logout}
+      />
 
-      {/* Nav tabs */}
-      <div className="nav-tabs">
-        <button className={`nav-tab${view === 'board' ? ' active' : ''}`} onClick={() => setView('board')}>
-          <i className="ti ti-layout-kanban" />Board
-        </button>
-        {isManager && (
-          <button className={`nav-tab${view === 'reports' ? ' active' : ''}`} onClick={() => setView('reports')}>
-            <i className="ti ti-chart-bar" />Hours report
-          </button>
+      <div className="main-area">
+        <div className="main-header">
+          <div className="main-header-left">
+            <h1 className="main-title">
+              {selectedClient
+                ? (clients.find(c => String(c.id) === String(selectedClient))?.name ?? 'Client')
+                : 'All Projects'}
+            </h1>
+          </div>
+          <div className="main-header-right">
+            <div className="view-toggle">
+              <button className={`view-btn${view === 'board' ? ' active' : ''}`} onClick={() => setView('board')}>
+                <i className="ti ti-layout-kanban" /> Board
+              </button>
+              <button className={`view-btn${view === 'list' ? ' active' : ''}`} onClick={() => setView('list')}>
+                <i className="ti ti-list" /> List
+              </button>
+              {isManager && (
+                <button className={`view-btn${view === 'reports' ? ' active' : ''}`} onClick={() => setView('reports')}>
+                  <i className="ti ti-chart-bar" /> Reports
+                </button>
+              )}
+            </div>
+            {isManager && view !== 'reports' && (
+              <button className="btn btn-primary" onClick={() => setModal({ type: 'task', task: null, defaultSectionId: sections[0]?.id })}>
+                <i className="ti ti-plus" /> Add task
+              </button>
+            )}
+          </div>
+        </div>
+
+        {view === 'board' && (
+          <Board
+            sections={sections}
+            tasks={visibleTasks}
+            employees={employees}
+            clients={clients}
+            user={user}
+            onTasksChange={setTasks}
+            onOpenTask={(task, sectionId) => setModal({ type: 'task', task, defaultSectionId: sectionId || task?.section_id || sections[0]?.id })}
+          />
+        )}
+
+        {view === 'list' && (
+          <ListView
+            sections={sections}
+            tasks={visibleTasks}
+            clients={clients}
+            employees={employees}
+            user={user}
+            onTaskClick={task => setModal({ type: 'task', task, defaultSectionId: task.section_id })}
+            onTaskCreate={handleTaskCreate}
+            onSectionCreate={handleSectionCreate}
+            onSectionUpdate={handleSectionUpdate}
+            onSectionDelete={handleSectionDelete}
+          />
+        )}
+
+        {view === 'reports' && isManager && (
+          <Reports employees={employees} clients={clients} />
         )}
       </div>
-
-      {/* Client filter */}
-      <div className="filter-bar">
-        <i className="ti ti-building filter-icon" />
-        <button className={`chip${filterClient === 'all' ? ' active' : ''}`}
-          style={filterClient === 'all' ? { background: 'var(--surface2)' } : {}}
-          onClick={() => setFC('all')}>All clients</button>
-        {clients.map((cl, i) => {
-          const p = pal(clients, cl.id);
-          const active = filterClient === String(cl.id);
-          return (
-            <button key={cl.id} className={`chip${active ? ' active' : ''}`}
-              style={active ? { background: p[0], color: p[1] } : {}}
-              onClick={() => setFC(String(cl.id))}>{cl.name}</button>
-          );
-        })}
-      </div>
-
-      {/* Employee filter (manager only) */}
-      {isManager && (
-        <div className="filter-bar">
-          <i className="ti ti-user filter-icon" />
-          <button className={`chip${filterEmp === 'all' ? ' active' : ''}`}
-            style={filterEmp === 'all' ? { background: 'var(--surface2)' } : {}}
-            onClick={() => setFE('all')}>Everyone</button>
-          {employees.map(e => {
-            const p = pal(employees, e.id);
-            const active = filterEmp === String(e.id);
-            return (
-              <button key={e.id} className={`chip${active ? ' active' : ''}`}
-                style={active ? { background: p[0], color: p[1] } : {}}
-                onClick={() => setFE(String(e.id))}>{e.name.split(' ')[0]}</button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Stats */}
-      <div className="stats">
-        <div className="stat">
-          <div className="stat-label">Hours logged</div>
-          <div className="stat-val">{fmtH(totalHrs)}</div>
-          <div className="stat-sub">{filterClient !== 'all' ? (clients.find(c => String(c.id) === filterClient)?.name ?? '') : 'All clients'}</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Total tasks</div>
-          <div className="stat-val">{visible.length}</div>
-          <div className="stat-sub">{filterEmp !== 'all' ? (employees.find(e => String(e.id) === filterEmp)?.name ?? '') : isManager ? 'All employees' : 'Assigned to you'}</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">In progress</div>
-          <div className="stat-val">{inProgress}</div>
-          <div className="stat-sub">active tasks</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Completed</div>
-          <div className="stat-val">{done}</div>
-          <div className="stat-sub">tasks done</div>
-        </div>
-      </div>
-
-      {/* Main view */}
-      {view === 'board' && (
-        <Board
-          tasks={tasks}
-          employees={employees}
-          clients={clients}
-          user={user}
-          filterClient={filterClient}
-          filterEmployee={filterEmp}
-          onTasksChange={setTasks}
-          onOpenTask={(task, defaultStatus) => setModal({ type: 'task', task, defaultStatus: defaultStatus || task?.status || 'todo' })}
-        />
-      )}
-      {view === 'reports' && isManager && (
-        <Reports employees={employees} clients={clients} />
-      )}
 
       {/* Modals */}
       {modal?.type === 'task' && (
         <TaskModal
           task={modal.task}
+          sections={sections}
           employees={employees}
           clients={clients}
           user={user}
-          defaultStatus={modal.defaultStatus}
+          defaultSectionId={modal.defaultSectionId}
           onClose={() => setModal(null)}
           onSaved={handleTaskSaved}
           onDeleted={handleTaskDeleted}

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
-import { COLS, fmtH, today } from '../utils';
+import { fmtH, fmtDateTime, fmtSize, fileIcon, today } from '../utils';
 
-export default function TaskModal({ task, employees, clients, user, defaultStatus, onClose, onSaved, onDeleted }) {
+export default function TaskModal({ task, sections, employees, clients, user, defaultSectionId, onClose, onSaved, onDeleted }) {
   const isNew = !task;
   const [tab, setTab]           = useState('details');
   const [title, setTitle]       = useState(task?.title || '');
@@ -10,7 +10,9 @@ export default function TaskModal({ task, employees, clients, user, defaultStatu
   const [assignee, setAssignee] = useState(task?.assignee_id ? String(task.assignee_id) : '');
   const [client, setClient]     = useState(task?.client_id   ? String(task.client_id)   : '');
   const [priority, setPriority] = useState(task?.priority || 'medium');
-  const [status, setStatus]     = useState(task?.status || defaultStatus || 'todo');
+  const [sectionId, setSectionId] = useState(
+    task?.section_id ? String(task.section_id) : (defaultSectionId ? String(defaultSectionId) : '')
+  );
   const [dueDate, setDueDate]   = useState(task?.due_date || '');
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState('');
@@ -22,22 +24,39 @@ export default function TaskModal({ task, employees, clients, user, defaultStatu
   const [logHrs, setLogHrs]     = useState('');
   const [logNote, setLogNote]   = useState('');
 
+  // Activity tab state
+  const [notes, setNotes]           = useState([]);
+  const [attachments, setAttachments] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [noteText, setNoteText]     = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [editingNote, setEditingNote] = useState(null);
+  const [editNoteText, setEditNoteText] = useState('');
+  const fileInputRef = useRef(null);
+
   const titleRef = useRef(null);
   useEffect(() => { if (isNew) titleRef.current?.focus(); }, []);
 
   useEffect(() => {
     if (!isNew && tab === 'hours') loadLogs();
+    if (!isNew && tab === 'activity') loadActivity();
   }, [tab]);
 
   async function loadLogs() {
     setLogsLoading(true);
+    try { setLogs(await api.getLogs(task.id)); }
+    catch (err) { console.error(err); }
+    finally { setLogsLoading(false); }
+  }
+
+  async function loadActivity() {
+    setActivityLoading(true);
     try {
-      setLogs(await api.getLogs(task.id));
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLogsLoading(false);
-    }
+      const [n, a] = await Promise.all([api.getNotes(task.id), api.getAttachments(task.id)]);
+      setNotes(n);
+      setAttachments(a);
+    } catch (err) { console.error(err); }
+    finally { setActivityLoading(false); }
   }
 
   async function handleSave(e) {
@@ -52,7 +71,7 @@ export default function TaskModal({ task, employees, clients, user, defaultStatu
         client_id:   client   ? Number(client)   : null,
         priority,
         due_date: dueDate || null,
-        status,
+        section_id: sectionId ? Number(sectionId) : null,
       };
       const saved = isNew
         ? await api.createTask(data)
@@ -82,7 +101,7 @@ export default function TaskModal({ task, employees, clients, user, defaultStatu
       await api.createLog(task.id, { date: logDate, hours: Number(logHrs), note: logNote.trim() });
       setLogHrs(''); setLogNote('');
       await loadLogs();
-      onSaved({ ...task, total_hours: null }); // trigger parent refresh for total_hours
+      onSaved({ ...task, total_hours: null });
     } catch (err) {
       alert(err.message);
     }
@@ -96,6 +115,68 @@ export default function TaskModal({ task, employees, clients, user, defaultStatu
     } catch (err) {
       alert(err.message);
     }
+  }
+
+  async function handleAddNote(e) {
+    e.preventDefault();
+    if (!noteText.trim()) return;
+    setSavingNote(true);
+    try {
+      await api.createNote(task.id, { body: noteText.trim() });
+      setNoteText('');
+      await loadActivity();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  async function handleDeleteNote(nId) {
+    if (!confirm('Delete this note?')) return;
+    try {
+      await api.deleteNote(task.id, nId);
+      await loadActivity();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function handleSaveEditNote(nId) {
+    if (!editNoteText.trim()) return;
+    try {
+      await api.updateNote(task.id, nId, { body: editNoteText.trim() });
+      setEditingNote(null);
+      await loadActivity();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { alert('File must be under 10MB'); return; }
+
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result.split(',')[1];
+      try {
+        await api.createAttachment(task.id, {
+          filename: file.name,
+          mime_type: file.type || 'application/octet-stream',
+          size: file.size,
+          data: base64,
+        });
+        await loadActivity();
+      } catch (err) { alert(err.message); }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  async function handleDeleteAttachment(aId) {
+    if (!confirm('Delete this attachment?')) return;
+    try {
+      await api.deleteAttachment(task.id, aId);
+      await loadActivity();
+    } catch (err) { alert(err.message); }
   }
 
   const isManager = user.role === 'manager';
@@ -113,6 +194,9 @@ export default function TaskModal({ task, employees, clients, user, defaultStatu
             </button>
             <button className={`modal-tab${tab === 'hours' ? ' active' : ''}`} onClick={() => setTab('hours')}>
               <i className="ti ti-clock" /> Hours ({fmtH(task.total_hours || 0)})
+            </button>
+            <button className={`modal-tab${tab === 'activity' ? ' active' : ''}`} onClick={() => setTab('activity')}>
+              <i className="ti ti-activity" /> Activity
             </button>
           </div>
         )}
@@ -161,9 +245,10 @@ export default function TaskModal({ task, employees, clients, user, defaultStatu
                 </div>
               )}
               <div className="field">
-                <label>Status</label>
-                <select value={status} onChange={e => setStatus(e.target.value)}>
-                  {COLS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                <label>Section</label>
+                <select value={sectionId} onChange={e => setSectionId(e.target.value)}>
+                  <option value="">None</option>
+                  {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
             </div>
@@ -222,7 +307,6 @@ export default function TaskModal({ task, employees, clients, user, defaultStatu
                 </div>
               </>
             )}
-
             <p style={{ fontSize: 12, color: 'var(--text-2)', fontWeight: 500, margin: '14px 0 6px' }}>Log hours</p>
             <form onSubmit={handleAddLog}>
               <div className="add-log-row">
@@ -232,8 +316,113 @@ export default function TaskModal({ task, employees, clients, user, defaultStatu
                 <button type="submit" className="btn btn-primary btn-sm"><i className="ti ti-plus" /></button>
               </div>
             </form>
-
             <div className="modal-actions">
+              <button className="btn btn-primary" onClick={onClose}>Done</button>
+            </div>
+          </div>
+        )}
+
+        {/* Activity tab */}
+        {tab === 'activity' && (
+          <div className="activity-tab">
+            {activityLoading ? (
+              <p style={{ fontSize: 13, color: 'var(--text-3)', padding: '10px 0' }}>Loading…</p>
+            ) : (
+              <>
+                {/* Notes */}
+                <div className="activity-section-label">Notes</div>
+                {notes.length === 0 && (
+                  <p style={{ fontSize: 13, color: 'var(--text-3)', padding: '4px 0 10px' }}>No notes yet.</p>
+                )}
+                <div className="notes-list">
+                  {notes.map(n => (
+                    <div key={n.id} className="note-item">
+                      <div className="note-header">
+                        <span className="note-author">{n.user_name || 'Unknown'}</span>
+                        <span className="note-meta">{fmtDateTime(n.created_at)}</span>
+                        <div className="note-actions">
+                          {(isManager || n.user_id === user.id) && (
+                            <>
+                              <button className="icon-btn" title="Edit" onClick={() => { setEditingNote(n.id); setEditNoteText(n.body); }}>
+                                <i className="ti ti-pencil" />
+                              </button>
+                              <button className="icon-btn danger" title="Delete" onClick={() => handleDeleteNote(n.id)}>
+                                <i className="ti ti-trash" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {editingNote === n.id ? (
+                        <div className="note-edit">
+                          <textarea
+                            className="add-note-textarea"
+                            value={editNoteText}
+                            autoFocus
+                            onChange={e => setEditNoteText(e.target.value)}
+                          />
+                          <div className="note-edit-actions">
+                            <button className="btn btn-sm" onClick={() => setEditingNote(null)}>Cancel</button>
+                            <button className="btn btn-primary btn-sm" onClick={() => handleSaveEditNote(n.id)}>Save</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="note-body">{n.body}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <form onSubmit={handleAddNote} className="add-note-form">
+                  <textarea
+                    className="add-note-textarea"
+                    placeholder="Add a note…"
+                    value={noteText}
+                    onChange={e => setNoteText(e.target.value)}
+                    rows={3}
+                  />
+                  <button type="submit" className="btn btn-primary btn-sm" disabled={savingNote || !noteText.trim()}>
+                    {savingNote ? 'Saving…' : 'Add Note'}
+                  </button>
+                </form>
+
+                {/* Attachments */}
+                <div className="activity-section-label" style={{ marginTop: 20 }}>Attachments</div>
+                {attachments.length === 0 && (
+                  <p style={{ fontSize: 13, color: 'var(--text-3)', padding: '4px 0 10px' }}>No attachments yet.</p>
+                )}
+                <div className="attachments-list">
+                  {attachments.map(a => (
+                    <div key={a.id} className="attachment-item">
+                      <i className={`ti ${fileIcon(a.mime_type)} attachment-icon`} />
+                      <div className="attachment-info">
+                        <span className="attachment-name">{a.filename}</span>
+                        <span className="attachment-meta">{fmtSize(a.size)} · {fmtDateTime(a.created_at)}</span>
+                      </div>
+                      <div className="attachment-actions">
+                        <button className="icon-btn" title="Download" onClick={() => api.downloadAttachment(task.id, a.id, a.filename)}>
+                          <i className="ti ti-download" />
+                        </button>
+                        {isManager && (
+                          <button className="icon-btn danger" title="Delete" onClick={() => handleDeleteAttachment(a.id)}>
+                            <i className="ti ti-trash" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ marginTop: 10 }}>
+                  <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileUpload} />
+                  <button className="btn upload-btn" onClick={() => fileInputRef.current?.click()}>
+                    <i className="ti ti-upload" /> Upload File
+                  </button>
+                </div>
+              </>
+            )}
+
+            <div className="modal-actions" style={{ marginTop: 16 }}>
               <button className="btn btn-primary" onClick={onClose}>Done</button>
             </div>
           </div>

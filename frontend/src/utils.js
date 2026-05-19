@@ -1,11 +1,3 @@
-export const COLS = [
-  { id: 'backlog',    label: 'Backlog',      color: '#94918a' },
-  { id: 'todo',       label: 'To do',        color: '#3b82f6' },
-  { id: 'inprogress', label: 'In progress',  color: '#f59e0b' },
-  { id: 'review',     label: 'Review',       color: '#ec4899' },
-  { id: 'done',       label: 'Done',         color: '#10b981' },
-];
-
 export const PALETTES = [
   ['#dbeafe', '#1e40af'], ['#dcfce7', '#166534'], ['#fef3c7', '#92400e'],
   ['#ede9fe', '#4c1d95'], ['#fce7f3', '#831843'], ['#d1fae5', '#065f46'],
@@ -34,10 +26,20 @@ export function fmtDue(d) {
   if (!d) return null;
   const today = new Date().toISOString().slice(0, 10);
   const diff = Math.round((new Date(d + 'T00:00:00') - new Date(today + 'T00:00:00')) / 864e5);
-  const label = diff === 0
-    ? 'Today'
-    : new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const label = diff === 0 ? 'Today' : new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   return { label, overdue: diff <= 0 };
+}
+
+export function fmtDateTime(dt) {
+  if (!dt) return '';
+  const d = new Date(dt.includes('T') ? dt : dt + 'Z');
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+export function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 export function monthLabel(ym) {
@@ -47,4 +49,14 @@ export function monthLabel(ym) {
 
 export function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+export function fileIcon(mimeType) {
+  if (!mimeType) return 'ti-file';
+  if (mimeType.startsWith('image/')) return 'ti-photo';
+  if (mimeType === 'application/pdf') return 'ti-file-type-pdf';
+  if (mimeType.includes('word') || mimeType.includes('document')) return 'ti-file-type-doc';
+  if (mimeType.includes('sheet') || mimeType.includes('excel') || mimeType.includes('csv')) return 'ti-file-type-xls';
+  if (mimeType.includes('zip') || mimeType.includes('compressed')) return 'ti-file-zip';
+  return 'ti-file';
 }

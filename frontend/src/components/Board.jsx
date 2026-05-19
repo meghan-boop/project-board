@@ -1,16 +1,10 @@
 import { useRef } from 'react';
-import { COLS, pal, initials, fmtH, fmtDue } from '../utils';
+import { pal, initials, fmtH, fmtDue } from '../utils';
 import { api } from '../api';
 
-export default function Board({ tasks, employees, clients, user, filterClient, filterEmployee, onTasksChange, onOpenTask }) {
+export default function Board({ sections, tasks, employees, clients, user, onTasksChange, onOpenTask }) {
   const dragId = useRef(null);
-
   const isManager = user.role === 'manager';
-
-  const visible = tasks.filter(t =>
-    (filterClient   === 'all' || String(t.client_id)   === filterClient) &&
-    (filterEmployee === 'all' || String(t.assignee_id) === filterEmployee)
-  );
 
   function canDrag(task) {
     return isManager || String(task.assignee_id) === String(user.id);
@@ -39,21 +33,18 @@ export default function Board({ tasks, employees, clients, user, filterClient, f
     }
   }
 
-  async function onDrop(e, colId) {
+  async function onDrop(e, sectionId) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-active');
     const id = dragId.current;
     if (!id) return;
     const task = tasks.find(t => t.id === id);
-    if (!task || task.status === colId) return;
+    if (!task || task.section_id === sectionId) return;
 
-    // Optimistic update
-    onTasksChange(tasks.map(t => t.id === id ? { ...t, status: colId } : t));
-
+    onTasksChange(tasks.map(t => t.id === id ? { ...t, section_id: sectionId } : t));
     try {
-      await api.updateTask(id, { status: colId });
+      await api.updateTask(id, { section_id: sectionId });
     } catch (err) {
-      // Revert on failure
       onTasksChange(tasks);
       alert(err.message);
     }
@@ -61,16 +52,16 @@ export default function Board({ tasks, employees, clients, user, filterClient, f
 
   return (
     <div className="board" id="board">
-      {COLS.map(col => {
-        const colCards = visible.filter(t => t.status === col.id);
+      {sections.map(sec => {
+        const colCards = tasks.filter(t => t.section_id === sec.id);
         const colHrs   = colCards.reduce((s, t) => s + Number(t.total_hours || 0), 0);
 
         return (
-          <div className="col" key={col.id}>
+          <div className="col" key={sec.id}>
             <div className="col-header">
               <span className="col-label">
-                <span className="col-dot" style={{ background: col.color }} />
-                {col.label}
+                <span className="col-dot" style={{ background: sec.color || '#8b5cf6' }} />
+                {sec.name}
               </span>
               <div className="col-meta">
                 {colHrs > 0 && (
@@ -84,10 +75,10 @@ export default function Board({ tasks, employees, clients, user, filterClient, f
 
             <div
               className="card-list drop-zone"
-              data-col={col.id}
+              data-col={sec.id}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
-              onDrop={e => onDrop(e, col.id)}
+              onDrop={e => onDrop(e, sec.id)}
             >
               {colCards.map(task => {
                 const cl  = clients.find(c => c.id === task.client_id);
@@ -139,7 +130,7 @@ export default function Board({ tasks, employees, clients, user, filterClient, f
             </div>
 
             {isManager && (
-              <button className="add-card-btn" onClick={() => onOpenTask(null, col.id)}>
+              <button className="add-card-btn" onClick={() => onOpenTask(null, sec.id)}>
                 <i className="ti ti-plus" /> Add task
               </button>
             )}
