@@ -41,7 +41,13 @@ export const api = {
 
   getClients:   ()            => req('GET',    '/api/clients'),
   createClient: (name)        => req('POST',   '/api/clients', { name }),
+  updateClient: (id, data)    => req('PUT',    `/api/clients/${id}`, data),
   deleteClient: (id)          => req('DELETE', `/api/clients/${id}`),
+
+  getContracts:      ()             => req('GET',    '/api/contracts'),
+  createContract:    (data)         => req('POST',   '/api/contracts', data),
+  deleteContract:    (id)           => req('DELETE', `/api/contracts/${id}`),
+  downloadContract:  (id, name)     => download(`/api/contracts/${id}/download`, name),
 
   getSections:    ()          => req('GET',    '/api/sections'),
   createSection:  (data)      => req('POST',   '/api/sections', data),

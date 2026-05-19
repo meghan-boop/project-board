@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { fmtDue, initials, pal } from '../utils';
+import { api } from '../api';
 
-export default function ListView({ sections, tasks, clients, employees, user, onTaskClick, onOpenTask, onSectionCreate, onSectionUpdate, onSectionDelete }) {
+export default function ListView({ sections, tasks, clients, employees, user, onTaskClick, onOpenTask, onSectionCreate, onSectionUpdate, onSectionDelete, onTasksChange }) {
   const [collapsed, setCollapsed] = useState({});
   const [editingSection, setEditingSection] = useState(null);
   const [editSectionVal, setEditSectionVal] = useState('');
@@ -32,6 +33,13 @@ export default function ListView({ sections, tasks, clients, employees, user, on
     setAddingSection(false);
   }
 
+  async function handleComplete(e, task) {
+    e.stopPropagation();
+    onTasksChange(tasks.map(t => t.id === task.id ? { ...t, completed: 1 } : t));
+    try { await api.updateTask(task.id, { completed: true }); }
+    catch (err) { onTasksChange(tasks); alert(err.message); }
+  }
+
   const PRIORITIES = { high: 'priority-high', medium: 'priority-med', low: 'priority-low' };
 
   return (
@@ -45,7 +53,7 @@ export default function ListView({ sections, tasks, clients, employees, user, on
       </div>
 
       {sections.map(sec => {
-        const secTasks = tasks.filter(t => t.section_id === sec.id);
+        const secTasks = tasks.filter(t => t.section_id === sec.id && !t.completed);
         const isCollapsed = collapsed[sec.id];
         return (
           <div key={sec.id} className="section-group">
@@ -85,6 +93,9 @@ export default function ListView({ sections, tasks, clients, employees, user, on
                   return (
                     <div key={task.id} className="task-row" onClick={() => onTaskClick(task)}>
                       <span className="task-title-cell">
+                        <button className="task-complete-btn list" title="Mark complete" onClick={e => handleComplete(e, task)}>
+                          <i className="ti ti-circle-check" />
+                        </button>
                         <span className={`task-priority-dot ${PRIORITIES[task.priority] || ''}`} />
                         <span className="task-title-text">{task.title}</span>
                       </span>

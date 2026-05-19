@@ -3,8 +3,9 @@ import { api } from '../api';
 import { pal, fmtH } from '../utils';
 
 export default function ClientManager({ clients, tasks, onClose, onRefresh }) {
-  const [name, setName]   = useState('');
-  const [error, setError] = useState('');
+  const [name, setName]         = useState('');
+  const [error, setError]       = useState('');
+  const [showInactive, setShowInactive] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -22,6 +23,15 @@ export default function ClientManager({ clients, tasks, onClose, onRefresh }) {
     }
   }
 
+  async function handleArchive(cl) {
+    try {
+      await api.updateClient(cl.id, { active: cl.active === 0 ? 1 : 0 });
+      await onRefresh();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
   async function handleDelete(id) {
     if (!confirm('Remove this client? Tasks assigned to them will have no client.')) return;
     try {
@@ -32,34 +42,65 @@ export default function ClientManager({ clients, tasks, onClose, onRefresh }) {
     }
   }
 
+  const active   = clients.filter(c => c.active !== 0);
+  const inactive = clients.filter(c => c.active === 0);
+
+  function ClientRow({ cl }) {
+    const p = pal(clients, cl.id);
+    const tc  = tasks.filter(t => t.client_id === cl.id).length;
+    const hrs = fmtH(tasks.filter(t => t.client_id === cl.id).reduce((s, t) => s + Number(t.total_hours || 0), 0));
+    const isInactive = cl.active === 0;
+    return (
+      <div className="mgr-row" key={cl.id} style={isInactive ? { opacity: 0.55 } : {}}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: p[1], display: 'inline-block', flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 500 }}>{cl.name}</span>
+          {isInactive && <span style={{ fontSize: 10, color: 'var(--text-3)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 9999 }}>Inactive</span>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{tc} task{tc !== 1 ? 's' : ''} · {hrs}</span>
+          <button
+            className="btn btn-sm"
+            title={isInactive ? 'Reactivate client' : 'Archive client'}
+            onClick={() => handleArchive(cl)}
+            style={{ padding: '2px 8px', fontSize: 11 }}
+          >
+            {isInactive ? <><i className="ti ti-player-play" /> Reactivate</> : <><i className="ti ti-archive" /> Archive</>}
+          </button>
+          <button className="del-btn" title="Delete permanently" onClick={() => handleDelete(cl.id)}>
+            <i className="ti ti-x" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="overlay" id="overlay" onClick={e => e.target.id === 'overlay' && onClose()}>
       <div className="modal">
         <h3>Clients</h3>
 
-        {clients.length === 0 && (
+        {active.length === 0 && inactive.length === 0 && (
           <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', padding: '10px 0 14px' }}>
             No clients yet.
           </p>
         )}
 
-        {clients.map((cl, i) => {
-          const p = pal(clients, cl.id);
-          const tc  = tasks.filter(t => t.client_id === cl.id).length;
-          const hrs = fmtH(tasks.filter(t => t.client_id === cl.id).reduce((s, t) => s + Number(t.total_hours || 0), 0));
-          return (
-            <div className="mgr-row" key={cl.id}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: p[1], display: 'inline-block', flexShrink: 0 }} />
-                <span style={{ fontSize: 13, fontWeight: 500 }}>{cl.name}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{tc} task{tc !== 1 ? 's' : ''} · {hrs}</span>
-                <button className="del-btn" onClick={() => handleDelete(cl.id)}><i className="ti ti-x" /></button>
-              </div>
-            </div>
-          );
-        })}
+        {active.map(cl => <ClientRow key={cl.id} cl={cl} />)}
+
+        {inactive.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <button
+              className="btn btn-sm"
+              style={{ fontSize: 11, marginBottom: 8 }}
+              onClick={() => setShowInactive(v => !v)}
+            >
+              <i className={`ti ti-chevron-${showInactive ? 'up' : 'down'}`} />
+              {showInactive ? 'Hide' : 'Show'} {inactive.length} inactive client{inactive.length !== 1 ? 's' : ''}
+            </button>
+            {showInactive && inactive.map(cl => <ClientRow key={cl.id} cl={cl} />)}
+          </div>
+        )}
 
         {error && <div className="error-msg" style={{ marginTop: 8 }}>{error}</div>}
         <form onSubmit={handleAdd}>

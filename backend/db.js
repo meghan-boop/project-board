@@ -75,8 +75,21 @@ db.exec(`
   );
 `);
 
-// Add section_id column to existing tasks tables (migration)
+// Migrations
 try { db.exec('ALTER TABLE tasks ADD COLUMN section_id INTEGER REFERENCES sections(id) ON DELETE SET NULL'); } catch {}
+try { db.exec('ALTER TABLE tasks ADD COLUMN completed INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE clients ADD COLUMN active INTEGER DEFAULT 1'); } catch {}
+
+db.exec(`CREATE TABLE IF NOT EXISTS contracts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+  filename TEXT NOT NULL,
+  mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+  size INTEGER NOT NULL DEFAULT 0,
+  data TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+)`);
 
 // Seed default sections if none exist
 const sectionCount = db.prepare('SELECT COUNT(*) as n FROM sections').get().n;

@@ -1,13 +1,22 @@
-import { initials, pal, PALETTES } from '../utils';
+import { initials, pal } from '../utils';
 
-export default function Sidebar({ user, clients, selectedClient, onSelectClient, onOpenTeam, onOpenClients, onLogout }) {
-  const sorted = [...clients].sort((a, b) => a.name.localeCompare(b.name));
+export default function Sidebar({ user, clients, selectedClient, onSelectClient, onOpenTeam, onOpenClients, onOpenContracts, onLogout }) {
+  const activeClients = clients.filter(c => c.active !== 0);
+  const sorted = [...activeClients].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
         <span className="sidebar-logo-icon"><i className="ti ti-layout-kanban" /></span>
         <span className="sidebar-logo-text">ProjectBoard</span>
+      </div>
+
+      {/* Contracts — above All Projects */}
+      <div className="sidebar-section">
+        <div className="sidebar-item" onClick={onOpenContracts}>
+          <i className="ti ti-file-description" />
+          <span>Contracts</span>
+        </div>
       </div>
 
       <nav className="sidebar-section">

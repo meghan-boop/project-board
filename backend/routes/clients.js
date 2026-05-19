@@ -13,6 +13,18 @@ router.post('/', requireManager, (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid, name });
 });
 
+router.put('/:id', requireManager, (req, res) => {
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  const { name, active } = req.body;
+  db.prepare('UPDATE clients SET name=?, active=? WHERE id=?').run(
+    name?.trim() || client.name,
+    active !== undefined ? (active ? 1 : 0) : client.active,
+    req.params.id
+  );
+  res.json(db.prepare('SELECT * FROM clients WHERE id=?').get(req.params.id));
+});
+
 router.delete('/:id', requireManager, (req, res) => {
   const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.id);
   if (!client) return res.status(404).json({ error: 'Client not found' });

@@ -20,6 +20,7 @@ app.use('/api/tasks',        require('./routes/tasks'));
 app.use('/api/tasks',        require('./routes/logs'));
 app.use('/api/tasks',        require('./routes/activity'));
 app.use('/api/reports',      require('./routes/reports'));
+app.use('/api/contracts',    require('./routes/contracts'));
 
 if (process.env.NODE_ENV === 'production') {
   const dist = path.join(__dirname, '../frontend/dist');

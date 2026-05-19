@@ -6,6 +6,14 @@ export default function Board({ sections, tasks, employees, clients, user, onTas
   const dragId = useRef(null);
   const isManager = user.role === 'manager';
 
+  async function handleComplete(e, task) {
+    e.stopPropagation();
+    const updated = { ...task, completed: 1 };
+    onTasksChange(tasks.map(t => t.id === task.id ? updated : t));
+    try { await api.updateTask(task.id, { completed: true }); }
+    catch (err) { onTasksChange(tasks); alert(err.message); }
+  }
+
   function canDrag(task) {
     return isManager || String(task.assignee_id) === String(user.id);
   }
@@ -53,7 +61,7 @@ export default function Board({ sections, tasks, employees, clients, user, onTas
   return (
     <div className="board" id="board">
       {sections.map(sec => {
-        const colCards = tasks.filter(t => t.section_id === sec.id);
+        const colCards = tasks.filter(t => t.section_id === sec.id && !t.completed);
         const colHrs   = colCards.reduce((s, t) => s + Number(t.total_hours || 0), 0);
 
         return (
@@ -98,6 +106,9 @@ export default function Board({ sections, tasks, employees, clients, user, onTas
                     onDoubleClick={() => onOpenTask(task)}
                     style={{ cursor: draggable ? 'grab' : 'default' }}
                   >
+                    <button className="task-complete-btn" title="Mark complete" onClick={e => handleComplete(e, task)}>
+                      <i className="ti ti-circle-check" />
+                    </button>
                     {cl && cp && (
                       <div className="card-client" style={{ background: cp[0], color: cp[1] }}>
                         <i className="ti ti-building" style={{ fontSize: 11 }} /> {cl.name}

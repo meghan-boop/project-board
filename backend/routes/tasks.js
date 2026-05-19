@@ -9,7 +9,8 @@ const taskSelect = `
     s.name  AS section_name,
     s.color AS section_color,
     s.position AS section_position,
-    COALESCE((SELECT SUM(hours) FROM time_logs WHERE task_id = t.id), 0) AS total_hours
+    COALESCE((SELECT SUM(hours) FROM time_logs WHERE task_id = t.id), 0) AS total_hours,
+    COALESCE(t.completed, 0) AS completed
   FROM tasks t
   LEFT JOIN users    u ON t.assignee_id = u.id
   LEFT JOIN clients  c ON t.client_id   = c.id
@@ -49,13 +50,14 @@ router.put('/:id', requireAuth, (req, res) => {
 
   if (req.user.role === 'employee') {
     if (task.assignee_id !== req.user.id) return res.status(403).json({ error: 'Not your task' });
-    const { section_id } = req.body;
-    if (!section_id) return res.status(400).json({ error: 'section_id required' });
-    db.prepare('UPDATE tasks SET section_id = ? WHERE id = ?').run(section_id, req.params.id);
+    const { section_id, completed } = req.body;
+    if (section_id !== undefined) db.prepare('UPDATE tasks SET section_id = ? WHERE id = ?').run(section_id, req.params.id);
+    if (completed  !== undefined) db.prepare('UPDATE tasks SET completed = ? WHERE id = ?').run(completed ? 1 : 0, req.params.id);
+    if (section_id === undefined && completed === undefined) return res.status(400).json({ error: 'Nothing to update' });
   } else {
-    const { title, description, assignee_id, client_id, priority, due_date, section_id } = req.body;
+    const { title, description, assignee_id, client_id, priority, due_date, section_id, completed } = req.body;
     db.prepare(
-      'UPDATE tasks SET title=?, description=?, assignee_id=?, client_id=?, priority=?, due_date=?, section_id=? WHERE id=?'
+      'UPDATE tasks SET title=?, description=?, assignee_id=?, client_id=?, priority=?, due_date=?, section_id=?, completed=? WHERE id=?'
     ).run(
       title?.trim()   || task.title,
       description     !== undefined ? description.trim()       : task.description,
@@ -64,6 +66,7 @@ router.put('/:id', requireAuth, (req, res) => {
       priority        || task.priority,
       due_date        !== undefined ? (due_date    || null)    : task.due_date,
       section_id      !== undefined ? (section_id  || null)    : task.section_id,
+      completed       !== undefined ? (completed   ? 1 : 0)   : (task.completed || 0),
       req.params.id
     );
   }
