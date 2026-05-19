@@ -236,7 +236,7 @@ export default function App() {
             employees={employees}
             user={user}
             onTaskClick={task => setModal({ type: 'task', task, defaultSectionId: task.section_id })}
-            onTaskCreate={handleTaskCreate}
+            onOpenTask={(task, sectionId) => setModal({ type: 'task', task, defaultSectionId: sectionId || task?.section_id || sections[0]?.id })}
             onSectionCreate={handleSectionCreate}
             onSectionUpdate={handleSectionUpdate}
             onSectionDelete={handleSectionDelete}

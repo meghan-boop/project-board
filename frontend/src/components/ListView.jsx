@@ -1,15 +1,12 @@
 import { useState } from 'react';
 import { fmtDue, initials, pal } from '../utils';
-import { api } from '../api';
 
-export default function ListView({ sections, tasks, clients, employees, user, onTaskClick, onTaskCreate, onSectionCreate, onSectionUpdate, onSectionDelete, onTaskMove }) {
+export default function ListView({ sections, tasks, clients, employees, user, onTaskClick, onOpenTask, onSectionCreate, onSectionUpdate, onSectionDelete }) {
   const [collapsed, setCollapsed] = useState({});
   const [editingSection, setEditingSection] = useState(null);
   const [editSectionVal, setEditSectionVal] = useState('');
   const [addingSection, setAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
-  const [addingTaskIn, setAddingTaskIn] = useState(null);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
 
   function toggleCollapse(id) {
     setCollapsed(p => ({ ...p, [id]: !p[id] }));
@@ -33,14 +30,6 @@ export default function ListView({ sections, tasks, clients, employees, user, on
     await onSectionCreate({ name });
     setNewSectionName('');
     setAddingSection(false);
-  }
-
-  async function submitNewTask(sectionId) {
-    const title = newTaskTitle.trim();
-    if (!title) { setAddingTaskIn(null); return; }
-    await onTaskCreate({ title, section_id: sectionId });
-    setNewTaskTitle('');
-    setAddingTaskIn(null);
   }
 
   const PRIORITIES = { high: 'priority-high', medium: 'priority-med', low: 'priority-low' };
@@ -119,24 +108,10 @@ export default function ListView({ sections, tasks, clients, employees, user, on
                   );
                 })}
 
-                {addingTaskIn === sec.id ? (
-                  <div className="list-add-row">
-                    <input
-                      className="list-add-input"
-                      placeholder="Task name…"
-                      autoFocus
-                      value={newTaskTitle}
-                      onChange={e => setNewTaskTitle(e.target.value)}
-                      onBlur={() => submitNewTask(sec.id)}
-                      onKeyDown={e => { if (e.key === 'Enter') submitNewTask(sec.id); if (e.key === 'Escape') { setAddingTaskIn(null); setNewTaskTitle(''); } }}
-                    />
+                {user.role === 'manager' && (
+                  <div className="list-add-row add-trigger" onClick={() => onOpenTask(null, sec.id)}>
+                    <i className="ti ti-plus" /> Add task
                   </div>
-                ) : (
-                  user.role === 'manager' && (
-                    <div className="list-add-row add-trigger" onClick={() => setAddingTaskIn(sec.id)}>
-                      <i className="ti ti-plus" /> Add task
-                    </div>
-                  )
                 )}
               </>
             )}
