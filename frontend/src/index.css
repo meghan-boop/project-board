@@ -282,6 +282,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .add-note-textarea:focus { border-color: var(--accent); }
 .upload-btn { position: relative; overflow: hidden; }
 .upload-btn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0; }
+.new-task-file-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.new-task-filename { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
 
 /* ── MANAGER LIST ROWS ─────────────────────────────────────────────────────── */
 .mgr-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 11px; border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 7px; background: var(--surface2); }

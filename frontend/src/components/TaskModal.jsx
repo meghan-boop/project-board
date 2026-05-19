@@ -17,6 +17,10 @@ export default function TaskModal({ task, sections, employees, clients, user, de
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState('');
 
+  // New-task attachment state
+  const [newFile, setNewFile]   = useState(null);
+  const newFileInputRef = useRef(null);
+
   // Hours log state
   const [logs, setLogs]         = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -76,6 +80,26 @@ export default function TaskModal({ task, sections, employees, clients, user, de
       const saved = isNew
         ? await api.createTask(data)
         : await api.updateTask(task.id, data);
+
+      // Upload attachment if one was selected during task creation
+      if (isNew && newFile) {
+        await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = async (ev) => {
+            try {
+              await api.createAttachment(saved.id, {
+                filename: newFile.name,
+                mime_type: newFile.type || 'application/octet-stream',
+                size: newFile.size,
+                data: ev.target.result.split(',')[1],
+              });
+              resolve();
+            } catch (err) { reject(err); }
+          };
+          reader.readAsDataURL(newFile);
+        });
+      }
+
       onSaved(saved);
     } catch (err) {
       setError(err.message);
@@ -258,6 +282,34 @@ export default function TaskModal({ task, sections, employees, clients, user, de
                 <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
               </div>
             )}
+            {isNew && (
+              <div className="field">
+                <label>Attachment <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
+                <div className="new-task-file-row">
+                  <input
+                    ref={newFileInputRef}
+                    type="file"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const f = e.target.files[0];
+                      if (f && f.size > 10 * 1024 * 1024) { alert('File must be under 10MB'); return; }
+                      setNewFile(f || null);
+                    }}
+                  />
+                  <button type="button" className="btn btn-sm" onClick={() => newFileInputRef.current?.click()}>
+                    <i className="ti ti-upload" /> Choose file
+                  </button>
+                  {newFile
+                    ? <span className="new-task-filename"><i className="ti ti-paperclip" /> {newFile.name}</span>
+                    : <span style={{ fontSize: 12, color: 'var(--text-3)' }}>No file chosen</span>}
+                  {newFile && (
+                    <button type="button" className="icon-btn danger" onClick={() => { setNewFile(null); newFileInputRef.current.value = ''; }}>
+                      <i className="ti ti-x" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </form>
           <div className="modal-actions">
             {!isNew && isManager && (
@@ -312,12 +364,13 @@ export default function TaskModal({ task, sections, employees, clients, user, de
               <div className="add-log-row">
                 <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)} required />
                 <input type="number" value={logHrs} onChange={e => setLogHrs(e.target.value)} placeholder="Hours" min="0.25" step="0.25" required />
-                <select value={logNote} onChange={e => setLogNote(e.target.value)}>
-                  <option value="">[NA] Not Applicable</option>
+                <select value={logNote} onChange={e => setLogNote(e.target.value)} required>
+                  <option value="" disabled>Select phase…</option>
                   <option value="[IC] Initial Concept">[IC] Initial Concept</option>
                   <option value="[IE] Internal Edits">[IE] Internal Edits</option>
                   <option value="[CE] Client Edits">[CE] Client Edits</option>
                   <option value="[FF] Final Files">[FF] Final Files</option>
+                  <option value="[NA] Not Applicable">[NA] Not Applicable</option>
                 </select>
                 <button type="submit" className="btn btn-primary btn-sm"><i className="ti ti-plus" /></button>
               </div>
