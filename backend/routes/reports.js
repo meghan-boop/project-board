@@ -57,19 +57,20 @@ router.get('/hours', requireManager, (req, res) => {
 
   // Full detail log
   const detail = db.prepare(`
-    SELECT l.date,
-      COALESCE(u.name, 'Unknown')     AS employee,
-      COALESCE(c.name, 'No client')   AS client,
-      t.title                         AS task,
+    SELECT t.id                         AS task_id,
+      t.title                           AS task,
+      l.id                              AS log_id,
+      l.date,
+      COALESCE(u.name, 'Unknown')       AS employee,
+      COALESCE(c.name, 'No client')     AS client,
       l.hours,
-      COALESCE(l.note, '')            AS note,
-      t.status
+      COALESCE(l.note, '')              AS note
     FROM time_logs l
     JOIN tasks t ON l.task_id = t.id
     LEFT JOIN users   u ON l.user_id   = u.id
     LEFT JOIN clients c ON t.client_id = c.id
     ${taskWhere}
-    ORDER BY l.date ASC
+    ORDER BY t.title ASC, l.date ASC
   `).all(...taskParams);
 
   res.json({ byEmployee, byClient, byMonth, detail });

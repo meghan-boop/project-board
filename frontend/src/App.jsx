@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from './api';
+import { initials, pal } from './utils';
 import Login           from './components/Login';
 import Board           from './components/Board';
 import ListView        from './components/ListView';
@@ -18,6 +19,7 @@ export default function App() {
   const [sections, setSections]   = useState([]);
   const [view, setView]           = useState('board');
   const [selectedClient, setSelectedClient] = useState(null);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [modal, setModal]         = useState(null);
 
   useEffect(() => {
@@ -80,7 +82,7 @@ export default function App() {
   function logout() {
     localStorage.removeItem('pb_token');
     setUser(null); setTasks([]); setClients([]); setEmployees([]); setSections([]);
-    setModal(null); setView('board');
+    setModal(null); setView('board'); setSelectedClient(null); setSelectedEmployee(null);
   }
 
   function handleTaskSaved(saved) {
@@ -136,9 +138,10 @@ export default function App() {
 
   const isManager = user.role === 'manager';
 
-  const visibleTasks = selectedClient
-    ? tasks.filter(t => String(t.client_id) === String(selectedClient))
-    : tasks;
+  const visibleTasks = tasks.filter(t =>
+    (!selectedClient  || String(t.client_id)   === String(selectedClient)) &&
+    (!selectedEmployee || String(t.assignee_id) === String(selectedEmployee))
+  );
 
   return (
     <div className="app-shell">
@@ -182,6 +185,36 @@ export default function App() {
             )}
           </div>
         </div>
+
+        {/* Employee filter strip — shown on board and list views */}
+        {view !== 'reports' && employees.length > 0 && (
+          <div className="employee-filter-bar">
+            <button
+              className={`emp-filter-chip ${!selectedEmployee ? 'active' : ''}`}
+              onClick={() => setSelectedEmployee(null)}
+            >
+              All
+            </button>
+            {employees.map(emp => {
+              const [bg, fg] = pal(employees, emp.id);
+              const active = String(selectedEmployee) === String(emp.id);
+              return (
+                <button
+                  key={emp.id}
+                  className={`emp-filter-chip ${active ? 'active' : ''}`}
+                  style={active ? { background: bg, color: fg, borderColor: fg } : {}}
+                  onClick={() => setSelectedEmployee(active ? null : emp.id)}
+                  title={emp.name}
+                >
+                  <span className="emp-filter-avatar" style={{ background: bg, color: fg }}>
+                    {initials(emp.name)}
+                  </span>
+                  {emp.name.split(' ')[0]}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {view === 'board' && (
           <Board

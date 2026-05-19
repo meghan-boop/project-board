@@ -42,8 +42,8 @@ export default function Reports({ employees, clients }) {
       data.byMonth.forEach(r => rows.push([monthLabel(r.month), Math.round(r.total_hours * 10) / 10, r.task_count]));
     } else {
       filename = 'hours-full-detail.csv';
-      rows = [['Date', 'Employee', 'Client', 'Task', 'Hours', 'Note', 'Status']];
-      data.detail.forEach(r => rows.push([r.date, r.employee, r.client, r.task, Math.round(r.hours * 10) / 10, r.note, r.status]));
+      rows = [['Task', 'Date', 'Employee', 'Client', 'Hours', 'Note']];
+      data.detail.forEach(r => rows.push([r.task, r.date, r.employee, r.client, Math.round(r.hours * 10) / 10, r.note]));
     }
 
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -67,6 +67,20 @@ export default function Reports({ employees, clients }) {
       </div>
     ));
   }
+
+  // Group detail entries by task for the project breakdown
+  function buildTaskGroups(detail) {
+    const map = new Map();
+    for (const row of detail) {
+      if (!map.has(row.task_id)) map.set(row.task_id, { task: row.task, entries: [] });
+      map.get(row.task_id).entries.push(row);
+    }
+    return [...map.values()];
+  }
+
+  const clientName = filterCl ? clients.find(c => String(c.id) === filterCl)?.name : null;
+  const taskGroups = data ? buildTaskGroups(data.detail) : [];
+  const grandTotal = data ? data.detail.reduce((s, r) => s + Number(r.hours), 0) : 0;
 
   return (
     <div>
@@ -115,6 +129,59 @@ export default function Reports({ employees, clients }) {
           <div className="report-section">
             <h4>Hours by month <span>{data.byMonth.length} month{data.byMonth.length !== 1 ? 's' : ''}</span></h4>
             <BarRows rows={data.byMonth} maxKey="total_hours" colorOffset={6} />
+          </div>
+
+          {/* Project breakdown — always shown, prompt to filter if no client selected */}
+          <div className="report-section">
+            <h4>
+              Project breakdown — time entries
+              {clientName && <span>{clientName}</span>}
+            </h4>
+            {!filterCl ? (
+              <div className="empty" style={{ padding: '18px 0' }}>
+                Select a client above to see a full itemized breakdown of hours by task.
+              </div>
+            ) : taskGroups.length === 0 ? (
+              <div className="empty">No time entries for this client yet.</div>
+            ) : (
+              <>
+                {taskGroups.map(group => {
+                  const taskTotal = group.entries.reduce((s, e) => s + Number(e.hours), 0);
+                  return (
+                    <div key={group.task} className="breakdown-task-group">
+                      <div className="breakdown-task-header">
+                        <span className="breakdown-task-name">{group.task}</span>
+                        <span className="breakdown-task-total">{fmtH(taskTotal)}</span>
+                      </div>
+                      <table className="breakdown-table">
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Employee</th>
+                            <th>Hours</th>
+                            <th>Note</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.entries.map(entry => (
+                            <tr key={entry.log_id}>
+                              <td className="bd-date">{entry.date}</td>
+                              <td className="bd-employee">{entry.employee}</td>
+                              <td className="bd-hours">{fmtH(entry.hours)}</td>
+                              <td className="bd-note">{entry.note || <span style={{ color: 'var(--text-3)' }}>—</span>}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+                <div className="breakdown-grand-total">
+                  <span>Total hours — {clientName}</span>
+                  <strong>{fmtH(grandTotal)}</strong>
+                </div>
+              </>
+            )}
           </div>
         </>
       )}

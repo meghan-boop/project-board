@@ -299,6 +299,22 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .export-bar { display: flex; align-items: center; gap: 8px; padding: 11px 13px; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 1.25rem; flex-wrap: wrap; }
 .export-bar span { font-size: 13px; color: var(--text-2); margin-right: 2px; }
 
+/* ── PROJECT BREAKDOWN REPORT ──────────────────────────────────────────────── */
+.breakdown-task-group { margin-bottom: 18px; border: 0.5px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.breakdown-task-header { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; background: var(--surface2); border-bottom: 0.5px solid var(--border); }
+.breakdown-task-name { font-size: 13px; font-weight: 500; color: var(--text); }
+.breakdown-task-total { font-size: 13px; font-weight: 600; color: var(--accent); font-family: 'DM Mono', monospace; }
+.breakdown-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.breakdown-table th { text-align: left; color: var(--text-3); font-weight: 500; padding: 5px 14px; border-bottom: 0.5px solid var(--border); background: var(--surface); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.breakdown-table td { padding: 7px 14px; border-bottom: 0.5px solid var(--border); color: var(--text); vertical-align: middle; }
+.breakdown-table tr:last-child td { border-bottom: none; }
+.bd-date { white-space: nowrap; color: var(--text-2); }
+.bd-employee { white-space: nowrap; }
+.bd-hours { font-weight: 500; font-family: 'DM Mono', monospace; white-space: nowrap; }
+.bd-note { color: var(--text-2); }
+.breakdown-grand-total { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-top: 1.5px solid var(--border-strong); font-size: 14px; color: var(--text-2); margin-top: 4px; }
+.breakdown-grand-total strong { font-size: 16px; font-family: 'DM Mono', monospace; color: var(--text); }
+
 /* ── LOGIN ─────────────────────────────────────────────────────────────────── */
 .login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
 .login-box { background: var(--surface); border: 0.5px solid var(--border-strong); border-radius: var(--radius-lg); padding: 32px 28px; width: 360px; max-width: 100%; }
@@ -324,6 +340,45 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .sidebar-user-role { font-size: 10px; color: var(--text-3); text-transform: capitalize; }
 .sidebar-logout { background: none; border: none; cursor: pointer; color: var(--text-3); padding: 6px 10px; font-size: 16px; display: flex; align-items: center; border-radius: var(--radius); flex-shrink: 0; }
 .sidebar-logout:hover { color: var(--danger); background: var(--danger-bg); }
+
+/* ── EMPLOYEE FILTER BAR ───────────────────────────────────────────────────── */
+.employee-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 24px;
+  border-bottom: 0.5px solid var(--border);
+  flex-wrap: wrap;
+  background: var(--surface);
+}
+.emp-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px 4px 6px;
+  border: 0.5px solid var(--border-strong);
+  border-radius: 9999px;
+  font-size: 12px;
+  font-family: 'DM Sans', sans-serif;
+  color: var(--text-2);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.emp-filter-chip:hover { background: var(--surface2); color: var(--text); }
+.emp-filter-chip.active { font-weight: 500; }
+.emp-filter-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 
 /* ── BOARD PADDING ─────────────────────────────────────────────────────────── */
 .board { padding: 20px 24px; }
