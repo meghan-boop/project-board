@@ -8,7 +8,7 @@ export default function Sidebar({ user, clients, selectedClient, onSelectClient,
     <aside className="sidebar">
       <div className="sidebar-logo">
         <span className="sidebar-logo-icon"><i className="ti ti-layout-kanban" /></span>
-        <span className="sidebar-logo-text">ProjectBoard</span>
+        <span className="sidebar-logo-text">The Creative Bar</span>
       </div>
 
       {/* Contracts — above All Projects */}
